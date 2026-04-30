@@ -1,384 +1,280 @@
 import os
-import requests
 from flask import Flask, request, jsonify
+import requests
+import json
 
 app = Flask(__name__)
 
-WHATSAPP_TOKEN = os.environ.get("WHATSAPP_TOKEN")
-VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN")
-PHONE_NUMBER_ID = "1202684002920267"
-
-user_sessions = {}
-
-MESSAGES = {
-    "welcome": "Welcome to Safety Toolbox Talk Bot!
-
-Please select your language:
-1 - English
-2 - Hindi
-3 - Marathi
-
-Reply with 1, 2 or 3",
-    "menu_en": "SAFETY TOOLBOX TALK
-
-Select work type:
-1 - Excavation Work
-2 - Welding Work
-3 - Work at Height
-4 - Electrical Work
-5 - Confined Space
-6 - Emergency Numbers
-
-Reply with a number 1 to 6",
-    "menu_hi": "SURAKSHA TOOLBOX TALK
-
-Karya prakar chunen:
-1 - Khudaai
-2 - Welding
-3 - Unchaai par Karya
-4 - Vidyut Karya
-5 - Seemit Sthan
-6 - Aapatkaaleen Numbers
-
-1 se 6 bhejein",
-    "menu_mr": "SURAKSHA TOOLBOX TALK
-
-Kamache prakar nivada:
-1 - Khodai Kam
-2 - Welding Kam
-3 - Unchivare Kam
-4 - Vidyut Kam
-5 - Maryadit Jaga
-6 - Aapatkaaleen Kramank
-
-1 te 6 pathava",
-    "excavation_en": "EXCAVATION WORK - Safety Tips
-
-- Check underground utilities before digging
-- Slope or shore trench walls
-- Keep soil 2 ft away from edge
-- Use ladder for entry and exit
-- Inspect trench daily and after rain
-- Wear hard hat, safety boots and vest
-- Never work under suspended loads
-
-WARNING: Never enter unprotected trench!
-
-Reply MENU to go back",
-    "excavation_hi": "KHUDAAI KARYA - Suraksha Tips
-
-- Khudaai se pehle lines jaanchein
-- Khaai ko dhalan dein
-- Mitti 2 feet door rakhein
-- Seedhi use karein
-- Roz jaanch karein
-- Helmet aur joote pehnen
-
-CHETAVNI: Bina suraksha na utarein!
-
-Vaapas ke liye MENU likhein",
-    "excavation_mr": "KHODAI KAM - Suraksha Tips
-
-- Khodnyapurvi line tapasa
-- Khandakala utar dya
-- Mati 2 fut dur theva
-- Shidi vapra
-- Darroj tapasa
-- Helmet ani but ghala
-
-ISHARA: Asurakshit khandakat jaau naka!
-
-Parat janysathi MENU likha",
-    "welding_en": "WELDING WORK - Safety Tips
-
-- Wear welding helmet, gloves and apron
-- Ensure proper ventilation
-- Keep fire extinguisher nearby
-- Remove flammable materials
-- Never weld near gas cylinders
-- Check cables before use
-- Use welding screens
-
-WARNING: UV rays can cause blindness!
-
-Reply MENU to go back",
-    "welding_hi": "WELDING KARYA - Suraksha Tips
-
-- Helmet aur dastane pehnen
-- Ventilation rakhen
-- Aghnishamak yantra rakhein
-- Gas cylinder ke paas na karein
-- Cable jaanchein
-
-CHETAVNI: UV kiranen andhapan kar sakti hain!
-
-Vaapas ke liye MENU likhein",
-    "welding_mr": "WELDING KAM - Suraksha Tips
-
-- Helmet ani hatmoje ghala
-- Vayuvijan kara
-- Aghnishamak theva
-- Gas cylinder javaL welding nako
-- Cable tapasa
-
-ISHARA: UV kirananmule andhatva yeu shakate!
-
-Parat janysathi MENU likha",
-    "height_en": "WORK AT HEIGHT - Safety Tips
-
-- Use fall arrest harness above 2 metres
-- Inspect harness before every use
-- Secure tools with lanyards
-- Never stand on top rung of ladder
-- Maintain 3 points of contact
-- Use guardrails on open edges
-- No work in strong winds
-
-WARNING: Falls are number 1 cause of construction deaths!
-
-Reply MENU to go back",
-    "height_hi": "UNCHAAI PAR KARYA - Suraksha Tips
-
-- 2 meter se upar harness pehnen
-- Harness jaanchein
-- Auzar lanyard se bandhein
-- Seedhi par 3 point contact rakhein
-- Railing lagaayein
-- Tez hawa mein kaam na karein
-
-CHETAVNI: Girana mrityu ka number 1 kaaran!
-
-Vaapas ke liye MENU likhein",
-    "height_mr": "UNCHIVARE KAM - Suraksha Tips
-
-- 2 meter var harness ghala
-- Harness tapasa
-- Sadane lanyard ne bandha
-- 3 point contact theva
-- Railing lava
-- Jordar varyat kam nako
-
-ISHARA: Padane he number 1 kaaran ahe!
-
-Parat janysathi MENU likha",
-    "electrical_en": "ELECTRICAL WORK - Safety Tips
-
-- Use Lockout Tagout before work
-- Use insulated tools only
-- Wear rubber gloves and safety boots
-- Never work on live circuits alone
-- Keep water away from panels
-- Test with voltage tester before touching
-- Use RCD on portable equipment
-
-WARNING: Assume every wire is LIVE!
-
-Reply MENU to go back",
-    "electrical_hi": "VIDYUT KARYA - Suraksha Tips
-
-- Lockout Tagout karein
-- Insulated upkaran use karein
-- Rubber dastane pehnen
-- Live circuit par akele na karein
-- Paani door rakhein
-- Voltage tester se jaanchein
-
-CHETAVNI: Har taar LIVE samjhein!
-
-Vaapas ke liye MENU likhein",
-    "electrical_mr": "VIDYUT KAM - Suraksha Tips
-
-- Lockout Tagout kara
-- Insulated sadane vapra
-- Rubber hatmoje ghala
-- Live circuit var ekate nako
-- Pani dur theva
-- Voltage tester vapra
-
-ISHARA: Pratyek tar LIVE samja!
-
-Parat janysathi MENU likha",
-    "confined_en": "CONFINED SPACE - Safety Tips
-
-- Test atmosphere before entry
-- Get Permit to Work signed
-- Have standby person outside
-- Use continuous gas monitor
-- Wear full body harness
-- Never use open flame
-- Know emergency rescue plan
-
-WARNING: Never enter alone!
-
-Reply MENU to go back",
-    "confined_hi": "SEEMIT STHAN - Suraksha Tips
-
-- Vatavaran jaanchein
-- Permit to Work lein
-- Standby vyakti rakhein
-- Gas monitor use karein
-- Harness pehnen
-- Khuli lau na jalaayein
-
-CHETAVNI: Akele kabhi na jaayein!
-
-Vaapas ke liye MENU likhein",
-    "confined_mr": "MARYADIT JAGA - Suraksha Tips
-
-- Vatavaran tapasa
-- Permit to Work ghya
-- Standby vyakti theva
-- Gas monitor vapra
-- Harness ghala
-- Ughadi jyot nako
-
-ISHARA: Ekate jaau naka!
-
-Parat janysathi MENU likha",
-    "emergency_en": "EMERGENCY NUMBERS - INDIA
-
-Medical: 108
-Fire: 101
-Police: 100
-Ambulance: 102
-Disaster: 1078
-
-IF ACCIDENT HAPPENS:
-1. Call 108 immediately
-2. Do not move injured person
-3. Inform site supervisor
-4. Secure the area
-
-Reply MENU to go back",
-    "emergency_hi": "AAPATKAALEEN NUMBERS - INDIA
-
-Chikitsa: 108
-Damkal: 101
-Pulis: 100
-Ambulance: 102
-Aapda: 1078
-
-DURGHATNA MEIN:
-1. 108 par call karein
-2. Ghaayal ko na hilaayein
-3. Supervisor ko batayein
-4. Jagah surakshit karein
-
-Vaapas ke liye MENU likhein",
-    "emergency_mr": "AAPATKAALEEN KRAMANK - INDIA
-
-Vaidyakiya: 108
-Agnishamak: 101
-Police: 100
-Rughnavahika: 102
-Aapatti: 1078
-
-APGHATACHYA VELI:
-1. 108 var call kara
-2. Jakhami la halavu naka
-3. Supervisor la kalava
-4. Parisara surakshit kara
-
-Parat janysathi MENU likha",
-    "unknown_en": "I did not understand that.
-
-Reply MENU to see the main menu or send 1 to 6.",
-    "unknown_hi": "Samajh nahi aaya.
-
-MENU likhein ya 1 se 6 bhejein.",
-    "unknown_mr": "Samajale nahi.
-
-MENU likha kiva 1 te 6 pathava.",
-}
-
-
-def send_message(to, message):
-    url = "https://graph.facebook.com/v18.0/" + PHONE_NUMBER_ID + "/messages"
+# WhatsApp API Configuration
+WHATSAPP_API_URL = "https://graph.facebook.com/v25.0/1202684002920267/messages"
+ACCESS_TOKEN = os.environ.get("WHATSAPP_TOKEN", "")
+VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN", "mytoken123")
+YOUR_NUMBER = "919527911804"
+
+@app.route('/')
+def home():
+    return "Safety Toolbox Talk Bot is running!"
+
+@app.route('/webhook', methods=['GET', 'POST'])
+def webhook():
+    if request.method == 'GET':
+        if request.args.get("hub.verify_token") == VERIFY_TOKEN:
+            return request.args.get("hub.challenge")
+        return "Verification failed"
+
+    if request.method == 'POST':
+        data = request.json
+        print("INCOMING:", json.dumps(data, indent=2))
+
+        try:
+            entry = data['entry'][0]
+            changes = entry['changes'][0]
+            value = changes['value']
+
+            if 'messages' in value:
+                message_data = value['messages'][0]
+                from_number = message_data['from']
+                message_type = message_data.get('type', '')
+
+                if message_type == 'text':
+                    message_text = message_data['text']['body'].strip().lower()
+                    print(f"USER ({from_number}) SAID: {message_text}")
+
+                    reply_text = get_safety_reply(message_text)
+
+                    if from_number == YOUR_NUMBER:
+                        reply_to = YOUR_NUMBER
+                    else:
+                        reply_to = YOUR_NUMBER
+
+                    send_whatsapp_message(reply_to, reply_text)
+
+        except Exception as e:
+            print("ERROR:", e)
+
+        return "ok"
+
+
+def get_safety_reply(message_text):
+
+    if message_text in ['hi', 'hello', 'start', 'menu', 'help']:
+        return (
+            "👷 *Welcome to Safety Toolbox Talk Bot!* 🛡️\n\n"
+            "Please select your work type:\n\n"
+            "1️⃣ Excavation\n"
+            "2️⃣ Welding\n"
+            "3️⃣ Working at Height\n"
+            "4️⃣ Electrical Work\n"
+            "5️⃣ Confined Space\n\n"
+            "🌐 Language / भाषा / भाषा निवडा:\n"
+            "Type *hindi* for Hindi 🇮🇳\n"
+            "Type *marathi* for Marathi\n\n"
+            "🆘 Type *emergency* for Emergency Help"
+        )
+
+    elif message_text in ['1', 'excavation']:
+        return (
+            "⛏️ *EXCAVATION SAFETY*\n\n"
+            "⚠️ *Hazards:*\n"
+            "• Cave-in / soil collapse\n"
+            "• Underground utilities\n"
+            "• Falling objects\n"
+            "• Water accumulation\n\n"
+            "🦺 *PPE Required:*\n"
+            "• Hard hat\n"
+            "• Safety boots\n"
+            "• High-visibility vest\n"
+            "• Gloves\n\n"
+            "✅ *Do's:*\n"
+            "• Check underground utilities before digging\n"
+            "• Shore up walls deeper than 1.2m\n"
+            "• Keep spoil away from edges\n\n"
+            "❌ *Don'ts:*\n"
+            "• Never work alone in deep excavations\n"
+            "• Don't ignore cracks in soil walls\n"
+            "• Never store heavy material near edge\n\n"
+            "Type *menu* to go back."
+        )
+
+    elif message_text in ['2', 'welding']:
+        return (
+            "🔥 *WELDING SAFETY*\n\n"
+            "⚠️ *Hazards:*\n"
+            "• Fire and explosion\n"
+            "• Electric shock\n"
+            "• Toxic fumes\n"
+            "• UV radiation\n\n"
+            "🦺 *PPE Required:*\n"
+            "• Welding helmet\n"
+            "• Fire-resistant gloves\n"
+            "• Leather apron\n"
+            "• Respirator mask\n\n"
+            "✅ *Do's:*\n"
+            "• Ensure good ventilation\n"
+            "• Keep fire extinguisher nearby\n"
+            "• Inspect equipment before use\n\n"
+            "❌ *Don'ts:*\n"
+            "• Never weld near flammable materials\n"
+            "• Don't weld in wet conditions\n"
+            "• Never look at arc without shield\n\n"
+            "Type *menu* to go back."
+        )
+
+    elif message_text in ['3', 'height', 'working at height']:
+        return (
+            "🪜 *WORKING AT HEIGHT SAFETY*\n\n"
+            "⚠️ *Hazards:*\n"
+            "• Falls from ladders/scaffolding\n"
+            "• Falling objects\n"
+            "• Unstable platforms\n\n"
+            "🦺 *PPE Required:*\n"
+            "• Full body harness\n"
+            "• Hard hat\n"
+            "• Safety boots with grip\n"
+            "• Lanyard / lifeline\n\n"
+            "✅ *Do's:*\n"
+            "• Use 3-point contact on ladders\n"
+            "• Secure all tools with lanyards\n"
+            "• Inspect harness before each use\n\n"
+            "❌ *Don'ts:*\n"
+            "• Never work at height without harness\n"
+            "• Don't work in strong winds\n"
+            "• Never overload scaffolding\n\n"
+            "Type *menu* to go back."
+        )
+
+    elif message_text in ['4', 'electrical', 'electric']:
+        return (
+            "⚡ *ELECTRICAL SAFETY*\n\n"
+            "⚠️ *Hazards:*\n"
+            "• Electric shock\n"
+            "• Arc flash burns\n"
+            "• Fire from short circuit\n\n"
+            "🦺 *PPE Required:*\n"
+            "• Insulated gloves\n"
+            "• Safety goggles\n"
+            "• Arc flash suit\n"
+            "• Insulated tools\n\n"
+            "✅ *Do's:*\n"
+            "• Always use LOTO (Lockout/Tagout)\n"
+            "• Test before touch - verify power OFF\n"
+            "• Work with a buddy\n\n"
+            "❌ *Don'ts:*\n"
+            "• Never work on live circuits alone\n"
+            "• Don't use damaged cables\n"
+            "• Never bypass safety switches\n\n"
+            "Type *menu* to go back."
+        )
+
+    elif message_text in ['5', 'confined', 'confined space']:
+        return (
+            "🕳️ *CONFINED SPACE SAFETY*\n\n"
+            "⚠️ *Hazards:*\n"
+            "• Oxygen deficiency\n"
+            "• Toxic gases\n"
+            "• Engulfment\n"
+            "• Heat stress\n\n"
+            "🦺 *PPE Required:*\n"
+            "• Gas detector\n"
+            "• SCBA respirator\n"
+            "• Harness with retrieval line\n"
+            "• Communication device\n\n"
+            "✅ *Do's:*\n"
+            "• Always get Entry Permit\n"
+            "• Test atmosphere before entry\n"
+            "• Always have standby person outside\n\n"
+            "❌ *Don'ts:*\n"
+            "• Never enter without permit\n"
+            "• Don't enter if gas levels unsafe\n"
+            "• Never work alone inside\n\n"
+            "Type *menu* to go back."
+        )
+
+    elif message_text in ['emergency', 'sos', 'accident', 'fire']:
+        return (
+            "🆘 *EMERGENCY RESPONSE* 🆘\n\n"
+            "🔥 *FIRE:*\n"
+            "1. Raise alarm immediately\n"
+            "2. Call: 101 (Fire)\n"
+            "3. Evacuate - don't use lifts\n"
+            "4. Go to muster point\n\n"
+            "🤕 *ACCIDENT/INJURY:*\n"
+            "1. Don't move injured person\n"
+            "2. Call: 108 (Ambulance)\n"
+            "3. Apply first aid if trained\n"
+            "4. Inform supervisor immediately\n\n"
+            "☠️ *GAS LEAK:*\n"
+            "1. Don't operate any switches\n"
+            "2. Evacuate immediately\n"
+            "3. Call: 101\n\n"
+            "📞 *Emergency Numbers:*\n"
+            "• Ambulance: 108\n"
+            "• Fire: 101\n"
+            "• Police: 100\n"
+            "• Disaster: 1078\n\n"
+            "Type *menu* to return."
+        )
+
+    elif message_text == 'hindi':
+        return (
+            "👷 *सेफ्टी टूलबॉक्स टॉक बॉट में आपका स्वागत है!* 🛡️\n\n"
+            "अपना काम चुनें:\n\n"
+            "1️⃣ खुदाई (Excavation)\n"
+            "2️⃣ वेल्डिंग (Welding)\n"
+            "3️⃣ ऊंचाई पर काम (Height)\n"
+            "4️⃣ बिजली का काम (Electrical)\n"
+            "5️⃣ बंद जगह (Confined Space)\n\n"
+            "🆘 *आपातकाल* के लिए emergency टाइप करें\n\n"
+            "नंबर 1-5 में से चुनें।"
+        )
+
+    elif message_text == 'marathi':
+        return (
+            "👷 *सेफ्टी टूलबॉक्स टॉक बॉटमध्ये आपले स्वागत आहे!* 🛡️\n\n"
+            "तुमचे काम निवडा:\n\n"
+            "1️⃣ खोदकाम (Excavation)\n"
+            "2️⃣ वेल्डिंग (Welding)\n"
+            "3️⃣ उंचावर काम (Height)\n"
+            "4️⃣ विद्युत काम (Electrical)\n"
+            "5️⃣ बंद जागा (Confined Space)\n\n"
+            "🆘 आणीबाणीसाठी emergency टाइप करा\n\n"
+            "1-5 मधून निवडा।"
+        )
+
+    else:
+        return (
+            "❓ I didn't understand that.\n\n"
+            "Type *menu* or *hi* to see the main menu.\n"
+            "Type *emergency* for emergency help. 🆘\n\n"
+            "हिंदी के लिए *hindi* टाइप करें\n"
+            "मराठीसाठी *marathi* टाइप करा"
+        )
+
+
+def send_whatsapp_message(to_number, message_text):
     headers = {
-        "Authorization": "Bearer " + str(WHATSAPP_TOKEN),
+        "Authorization": f"Bearer {ACCESS_TOKEN}",
         "Content-Type": "application/json"
     }
+
     payload = {
         "messaging_product": "whatsapp",
-        "to": to,
+        "to": to_number,
         "type": "text",
-        "text": {"body": message}
-    }
-    response = requests.post(url, headers=headers, json=payload)
-    return response.json()
-
-
-def handle_message(from_number, text):
-    text = text.strip().lower()
-    lang = user_sessions.get(from_number, None)
-
-    if lang is None:
-        if text in ["1", "english"]:
-            user_sessions[from_number] = "en"
-            send_message(from_number, MESSAGES["menu_en"])
-        elif text in ["2", "hindi"]:
-            user_sessions[from_number] = "hi"
-            send_message(from_number, MESSAGES["menu_hi"])
-        elif text in ["3", "marathi"]:
-            user_sessions[from_number] = "mr"
-            send_message(from_number, MESSAGES["menu_mr"])
-        else:
-            send_message(from_number, MESSAGES["welcome"])
-        return
-
-    if text in ["menu", "hi", "hello", "start", "help"]:
-        user_sessions.pop(from_number, None)
-        send_message(from_number, MESSAGES["welcome"])
-        return
-
-    topic_map = {
-        "1": "excavation",
-        "2": "welding",
-        "3": "height",
-        "4": "electrical",
-        "5": "confined",
-        "6": "emergency",
+        "text": {
+            "body": message_text
+        }
     }
 
-    if text in topic_map:
-        key = topic_map[text] + "_" + lang
-        send_message(from_number, MESSAGES.get(key, MESSAGES["unknown_" + lang]))
-    else:
-        send_message(from_number, MESSAGES["unknown_" + lang])
-
-
-@app.route("/webhook", methods=["GET"])
-def verify_webhook():
-    mode = request.args.get("hub.mode")
-    token = request.args.get("hub.verify_token")
-    challenge = request.args.get("hub.challenge")
-    if mode == "subscribe" and token == VERIFY_TOKEN:
-        return challenge, 200
-    return "Forbidden", 403
-
-
-@app.route("/webhook", methods=["POST"])
-def receive_message():
-    data = request.get_json()
     try:
-        entries = data.get("entry", [])
-        for entry in entries:
-            for change in entry.get("changes", []):
-                value = change.get("value", {})
-                messages = value.get("messages", [])
-                for message in messages:
-                    if message.get("type") == "text":
-                        from_number = message["from"]
-                        text = message["text"]["body"]
-                        handle_message(from_number, text)
+        response = requests.post(WHATSAPP_API_URL, headers=headers, json=payload)
+        if response.status_code == 200:
+            print(f"Message sent successfully to {to_number}")
+        else:
+            print(f"Failed: {response.status_code}")
+            print(response.text)
     except Exception as e:
-        print("Error: " + str(e))
-    return jsonify({"status": "ok"}), 200
-
-
-@app.route("/", methods=["GET"])
-def home():
-    return "Safety Toolbox Talk Bot is running!", 200
+        print(f"Error: {e}")
 
 
 if __name__ == "__main__":
